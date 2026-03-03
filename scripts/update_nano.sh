@@ -12,7 +12,28 @@ NCURSES_URL="https://invisible-mirror.net/archives/ncurses/ncurses-${NCURSES_VER
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
-LATEST_TAG_RAW="$(git ls-remote --tags --refs "${NANO_GIT_URL}" | awk '{print $2}' | sed 's#refs/tags/##' | sort -V | tail -n 1)"
+retry() {
+  local attempts="$1"
+  local delay_seconds="$2"
+  shift 2
+
+  local i
+  for i in $(seq 1 "${attempts}"); do
+    if "$@"; then
+      return 0
+    fi
+
+    if [[ "${i}" -lt "${attempts}" ]]; then
+      echo "Command failed (attempt ${i}/${attempts}): $*"
+      echo "Retrying in ${delay_seconds}s..."
+      sleep "${delay_seconds}"
+    fi
+  done
+
+  return 1
+}
+
+LATEST_TAG_RAW="$(retry 5 10 git ls-remote --tags --refs "${NANO_GIT_URL}" | awk '{print $2}' | sed 's#refs/tags/##' | sort -V | tail -n 1)"
 
 if [[ -z "${LATEST_TAG_RAW}" ]]; then
   echo "Could not resolve latest nano tag from Savannah Git."
@@ -37,13 +58,13 @@ if [[ -f "${VERSIONED_BINARY_PATH}" ]]; then
 fi
 
 SRC_DIR="${TMP_DIR}/nano-src"
-git clone --depth 1 --branch "${LATEST_TAG_RAW}" "${NANO_GIT_URL}" "${SRC_DIR}"
+retry 5 10 git clone --depth 1 --branch "${LATEST_TAG_RAW}" "${NANO_GIT_URL}" "${SRC_DIR}"
 
 NCURSES_ARCHIVE_PATH="${TMP_DIR}/ncurses.tar.gz"
 NCURSES_SRC_DIR="${TMP_DIR}/ncurses-src"
 NCURSES_INSTALL_PREFIX="${TMP_DIR}/ncurses-static"
 
-curl -fL "${NCURSES_URL}" -o "${NCURSES_ARCHIVE_PATH}"
+retry 5 10 curl -fL "${NCURSES_URL}" -o "${NCURSES_ARCHIVE_PATH}"
 tar -xzf "${NCURSES_ARCHIVE_PATH}" -C "${TMP_DIR}"
 mv "${TMP_DIR}/ncurses-${NCURSES_VERSION}" "${NCURSES_SRC_DIR}"
 
