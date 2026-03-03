@@ -28,6 +28,12 @@ git clone --depth 1 --branch "${LATEST_TAG_RAW}" "${NANO_GIT_URL}" "${SRC_DIR}"
 
 pushd "${SRC_DIR}" > /dev/null
 ./autogen.sh
+
+if [[ ! -f "${SRC_DIR}/configure" ]]; then
+  echo "nano autogen step did not produce configure. Check build dependencies (autopoint/gettext)."
+  exit 1
+fi
+
 ./configure
 make -j"$(nproc)"
 popd > /dev/null
