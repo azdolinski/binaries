@@ -7,6 +7,7 @@ Currently supported projects:
 - `lazydocker` from `https://github.com/jesseduffield/lazydocker`
 - `htop` from `https://github.com/htop-dev/htop`
 - `nano` from `https://git.savannah.gnu.org/git/nano.git`
+- `docker-compose` from `https://github.com/docker/compose`
 
 ## Purpose
 
@@ -26,6 +27,7 @@ Examples:
 - `binaries/lazydocker.v0.24.4`
 - `binaries/htop.v3.4.1`
 - `binaries/nano.v8.6`
+- `binaries/docker-compose.v2.39.4`
 
 ## Automation
 
@@ -33,10 +35,11 @@ The main updater workflow runs once a week on Sunday at 03:00 UTC and also suppo
 
 Current workflows:
 
-- `Update all binaries weekly` (scheduled orchestrator that runs referenced subworkflows in sequence: lazydocker -> htop -> nano)
+- `Update all binaries weekly` (scheduled orchestrator that runs referenced subworkflows in sequence: lazydocker -> htop -> nano -> docker-compose)
 - `Update lazydocker binary`
 - `Update htop binary`
 - `Update nano binary`
+- `Update docker-compose binary`
 
 ## Download examples
 
@@ -46,6 +49,7 @@ You can download the latest binaries directly from this repository and save them
 wget -O lazydocker https://github.com/azdolinski/binaries/raw/refs/heads/main/binaries/lazydocker.latest
 wget -O htop https://github.com/azdolinski/binaries/raw/refs/heads/main/binaries/htop.latest
 wget -O nano https://github.com/azdolinski/binaries/raw/refs/heads/main/binaries/nano.latest
+wget -O docker-compose https://github.com/azdolinski/binaries/raw/refs/heads/main/binaries/docker-compose.latest
 ```
 
 ## Notes
@@ -53,5 +57,6 @@ wget -O nano https://github.com/azdolinski/binaries/raw/refs/heads/main/binaries
 - `lazydocker` is downloaded from release assets and stored as an unpacked executable.
 - `htop` is downloaded from release source archive, built in CI, and then stored as an executable.
 - `nano` is cloned from Savannah Git by latest tag, built in CI, and then stored as an executable.
+- `docker-compose` is downloaded from release assets and stored as an unpacked executable.
 - Each workflow commits only when files in `binaries/` changed.
 - This structure is designed to be extended with more tools in future.

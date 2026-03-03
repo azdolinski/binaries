@@ -1,11 +1,11 @@
-name: Update nano binary
+name: Update docker-compose binary
 
 on:
   workflow_dispatch:
   workflow_call:
     outputs:
       version:
-        description: "Resolved nano version"
+        description: "Resolved docker-compose version"
         value: ${{ jobs.update.outputs.version }}
 
 permissions:
@@ -21,13 +21,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential autoconf automake libtool pkg-config gettext autopoint texinfo
-
-      - name: Download, build, and store latest nano
-        run: bash ./scripts/update_nano.sh
+      - name: Download and store latest docker-compose
+        run: bash ./scripts/update_docker_compose.sh
 
       - name: Commit and push changes
         run: |
@@ -40,7 +35,7 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "chore: update nano binary"
+          git commit -m "chore: update docker-compose binary"
           git pull --no-rebase origin main
           git push
 
@@ -48,5 +43,5 @@ jobs:
         id: detect_version
         if: always()
         run: |
-          version="$(ls -1 binaries/nano.v* 2>/dev/null | sed 's#^.*/nano\.##' | sort -V | tail -n 1)"
+          version="$(ls -1 binaries/docker-compose.v* 2>/dev/null | sed 's#^.*/docker-compose\.##' | sort -V | tail -n 1)"
           echo "version=${version}" >> "${GITHUB_OUTPUT}"

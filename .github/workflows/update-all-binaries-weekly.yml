@@ -1,4 +1,4 @@
-name: Update all binaries weekly
+name: 🚀 Update all binaries weekly
 
 on:
   workflow_dispatch:
@@ -26,28 +26,35 @@ jobs:
     if: always()
     uses: ./.github/workflows/update-nano.yml
 
+  update-docker-compose:
+    needs: update-nano
+    if: always()
+    uses: ./.github/workflows/update-docker-compose.yml
+
   summary:
     needs:
       - update-lazydocker
       - update-htop
       - update-nano
+      - update-docker-compose
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - name: Summary
+      - name: 📋 Summary
         run: |
           invoked_at="$(date -u '+%Y-%m-%d %H:%M:%S UTC')"
           planned_next_run="$(date -u -d 'next sunday 03:00' '+%Y-%m-%d %H:%M:%S UTC')"
 
-          echo "## Weekly binaries update summary" >> "${GITHUB_STEP_SUMMARY}"
+          echo "## 🚀 Weekly binaries update summary" >> "${GITHUB_STEP_SUMMARY}"
           echo "" >> "${GITHUB_STEP_SUMMARY}"
-          echo "- invoked at: ${invoked_at}" >> "${GITHUB_STEP_SUMMARY}"
-          echo "- next planned run: ${planned_next_run}" >> "${GITHUB_STEP_SUMMARY}"
-          echo "- lazydocker: ${{ needs.update-lazydocker.result }}" >> "${GITHUB_STEP_SUMMARY}"
-          echo "- htop: ${{ needs.update-htop.result }}" >> "${GITHUB_STEP_SUMMARY}"
-          echo "- nano: ${{ needs.update-nano.result }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "- 🕒 invoked at: ${invoked_at}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "- 📅 next planned run: ${planned_next_run}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "- 🐳 lazydocker: ${{ needs.update-lazydocker.result }} (version: ${{ needs.update-lazydocker.outputs.version || 'unknown' }})" >> "${GITHUB_STEP_SUMMARY}"
+          echo "- 📊 htop: ${{ needs.update-htop.result }} (version: ${{ needs.update-htop.outputs.version || 'unknown' }})" >> "${GITHUB_STEP_SUMMARY}"
+          echo "- ✍️ nano: ${{ needs.update-nano.result }} (version: ${{ needs.update-nano.outputs.version || 'unknown' }})" >> "${GITHUB_STEP_SUMMARY}"
+          echo "- 🧩 docker-compose: ${{ needs.update-docker-compose.result }} (version: ${{ needs.update-docker-compose.outputs.version || 'unknown' }})" >> "${GITHUB_STEP_SUMMARY}"
 
-      - name: Fail workflow if any updater failed
+      - name: 🚨 Fail workflow if any updater failed
         run: |
           failed=""
 
@@ -61,6 +68,10 @@ jobs:
 
           if [[ "${{ needs.update-nano.result }}" != "success" ]]; then
             failed="${failed} nano"
+          fi
+
+          if [[ "${{ needs.update-docker-compose.result }}" != "success" ]]; then
+            failed="${failed} docker-compose"
           fi
 
           if [[ -n "${failed}" ]]; then
