@@ -29,10 +29,11 @@ Examples:
 
 ## Automation
 
-Each updater workflow runs every day at 03:00 UTC and also supports manual run via GitHub Actions.
+The main updater workflow runs once a week on Sunday at 03:00 UTC and also supports manual run via GitHub Actions.
 
 Current workflows:
 
+- `Update all binaries weekly` (scheduled, runs lazydocker -> htop -> nano sequentially)
 - `Update lazydocker binary`
 - `Update htop binary`
 - `Update nano binary`
@@ -42,9 +43,9 @@ Current workflows:
 You can download the latest binaries directly from this repository and save them without the `.latest` suffix:
 
 ```bash
-wget -O lazydocker https://github.com/azdolinski/lazydocker/raw/refs/heads/main/binaries/lazydocker.latest
-wget -O htop https://github.com/azdolinski/lazydocker/raw/refs/heads/main/binaries/htop.latest
-wget -O nano https://github.com/azdolinski/lazydocker/raw/refs/heads/main/binaries/nano.latest
+wget -O lazydocker https://github.com/azdolinski/binaries/raw/refs/heads/main/binaries/lazydocker.latest
+wget -O htop https://github.com/azdolinski/binaries/raw/refs/heads/main/binaries/htop.latest
+wget -O nano https://github.com/azdolinski/binaries/raw/refs/heads/main/binaries/nano.latest
 ```
 
 ## Notes
