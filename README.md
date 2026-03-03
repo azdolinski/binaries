@@ -6,6 +6,7 @@ Currently supported projects:
 
 - `lazydocker` from `https://github.com/jesseduffield/lazydocker`
 - `htop` from `https://github.com/htop-dev/htop`
+- `nano` from `https://git.savannah.gnu.org/git/nano.git`
 
 ## Purpose
 
@@ -24,6 +25,7 @@ Examples:
 
 - `binaries/lazydocker.v0.24.4`
 - `binaries/htop.v3.4.1`
+- `binaries/nano.v8.6`
 
 ## Automation
 
@@ -33,10 +35,12 @@ Current workflows:
 
 - `Update lazydocker binary`
 - `Update htop binary`
+- `Update nano binary`
 
 ## Notes
 
 - `lazydocker` is downloaded from release assets and stored as an unpacked executable.
 - `htop` is downloaded from release source archive, built in CI, and then stored as an executable.
+- `nano` is cloned from Savannah Git by latest tag, built in CI, and then stored as an executable.
 - Each workflow commits only when files in `binaries/` changed.
 - This structure is designed to be extended with more tools in future.
