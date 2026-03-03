@@ -33,7 +33,7 @@ The main updater workflow runs once a week on Sunday at 03:00 UTC and also suppo
 
 Current workflows:
 
-- `Update all binaries weekly` (scheduled, runs lazydocker -> htop -> nano sequentially)
+- `Update all binaries weekly` (scheduled orchestrator that runs referenced subworkflows in sequence: lazydocker -> htop -> nano)
 - `Update lazydocker binary`
 - `Update htop binary`
 - `Update nano binary`

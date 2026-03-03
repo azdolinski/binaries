@@ -13,72 +13,68 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  update-all:
+  update-lazydocker:
+    uses: ./.github/workflows/update-lazydocker.yml
+    continue-on-error: true
+
+  update-htop:
+    needs: update-lazydocker
+    if: always()
+    uses: ./.github/workflows/update-htop.yml
+    continue-on-error: true
+
+  update-nano:
+    needs: update-htop
+    if: always()
+    uses: ./.github/workflows/update-nano.yml
+    continue-on-error: true
+
+  summary:
+    needs:
+      - update-lazydocker
+      - update-htop
+      - update-nano
+    if: always()
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Install build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential autoconf automake libtool pkg-config gettext autopoint texinfo libncursesw5-dev
-
-      - name: Update lazydocker
-        id: update_lazydocker
-        continue-on-error: true
-        run: bash ./scripts/update_lazydocker.sh
-
-      - name: Update htop
-        id: update_htop
-        continue-on-error: true
-        run: bash ./scripts/update_htop.sh
-
-      - name: Update nano
-        id: update_nano
-        continue-on-error: true
-        run: bash ./scripts/update_nano.sh
-
-      - name: Commit and push changes
-        if: always()
-        run: |
-          git add -A binaries
-
-          if git diff --cached --quiet; then
-            echo "No changes in binaries directory."
-            exit 0
-          fi
-
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "chore: weekly update binaries"
-          git pull --no-rebase origin main
-          git push
-
       - name: Summary
-        if: always()
         run: |
+          invoked_at="$(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          planned_next_run="$(python3 - <<'PY'
+from datetime import datetime, timedelta, timezone
+
+now = datetime.now(timezone.utc)
+days_ahead = (6 - now.weekday()) % 7
+next_run = (now + timedelta(days=days_ahead)).replace(hour=3, minute=0, second=0, microsecond=0)
+
+if next_run <= now:
+    next_run += timedelta(days=7)
+
+print(next_run.strftime('%Y-%m-%d %H:%M:%S UTC'))
+PY
+)"
+
           echo "## Weekly binaries update summary" >> "${GITHUB_STEP_SUMMARY}"
           echo "" >> "${GITHUB_STEP_SUMMARY}"
-          echo "- lazydocker: ${{ steps.update_lazydocker.outcome }}" >> "${GITHUB_STEP_SUMMARY}"
-          echo "- htop: ${{ steps.update_htop.outcome }}" >> "${GITHUB_STEP_SUMMARY}"
-          echo "- nano: ${{ steps.update_nano.outcome }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "- invoked at: ${invoked_at}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "- next planned run: ${planned_next_run}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "- lazydocker: ${{ needs.update-lazydocker.result }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "- htop: ${{ needs.update-htop.result }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "- nano: ${{ needs.update-nano.result }}" >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Fail workflow if any updater failed
-        if: always()
         run: |
           failed=""
 
-          if [[ "${{ steps.update_lazydocker.outcome }}" != "success" ]]; then
+          if [[ "${{ needs.update-lazydocker.result }}" != "success" ]]; then
             failed="${failed} lazydocker"
           fi
 
-          if [[ "${{ steps.update_htop.outcome }}" != "success" ]]; then
+          if [[ "${{ needs.update-htop.result }}" != "success" ]]; then
             failed="${failed} htop"
           fi
 
-          if [[ "${{ steps.update_nano.outcome }}" != "success" ]]; then
+          if [[ "${{ needs.update-nano.result }}" != "success" ]]; then
             failed="${failed} nano"
           fi
 
