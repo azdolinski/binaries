@@ -76,7 +76,7 @@ fi
 pushd "${SRC_DIR}" > /dev/null
 export CPPFLAGS="-I${NCURSES_INSTALL_PREFIX}/include/ncursesw"
 export LDFLAGS="-L${NCURSES_INSTALL_PREFIX}/lib"
-export LIBS="-Wl,-Bstatic -ltinfow -lncursesw -Wl,-Bdynamic -lm"
+export LIBS="-lm"
 
 ./configure
 make -j"$(nproc)"
@@ -88,9 +88,8 @@ if [[ ! -f "${SRC_DIR}/htop" ]]; then
 fi
 
 if ldd "${SRC_DIR}/htop" 2>&1 | grep -Eq 'libncurses|libtinfo'; then
-  echo "htop binary is unexpectedly linked to dynamic ncurses/tinfo."
+  echo "htop is linked to dynamic ncurses/tinfo (expected for stable NSS/glibc behavior)."
   ldd "${SRC_DIR}/htop" || true
-  exit 1
 fi
 
 install -m 0755 "${SRC_DIR}/htop" "${VERSIONED_BINARY_PATH}"
