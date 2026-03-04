@@ -76,11 +76,9 @@ fi
 pushd "${SRC_DIR}" > /dev/null
 export CPPFLAGS="-I${NCURSES_INSTALL_PREFIX}/include/ncursesw"
 export LDFLAGS="-L${NCURSES_INSTALL_PREFIX}/lib"
-export LIBS="-Wl,-Bstatic -ltinfow -lncursesw -Wl,-Bdynamic"
+export LIBS="-Wl,-Bstatic -ltinfow -lncursesw -Wl,-Bdynamic -lm"
 
-./configure \
-  --disable-shared \
-  --enable-static
+./configure
 make -j"$(nproc)"
 popd > /dev/null
 
