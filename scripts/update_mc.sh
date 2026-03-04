@@ -90,19 +90,31 @@ if [[ ! -f "${SRC_DIR}/configure" ]]; then
   fi
 fi
 
-./configure \
-  --without-x \
-  --with-gpm-mouse \
-  --with-screen=ncurses
+GPM_STATIC_LIB=""
+if [[ -f "/usr/lib/x86_64-linux-gnu/libgpm.a" ]]; then
+  GPM_STATIC_LIB="/usr/lib/x86_64-linux-gnu/libgpm.a"
+elif [[ -f "/usr/lib64/libgpm.a" ]]; then
+  GPM_STATIC_LIB="/usr/lib64/libgpm.a"
+elif [[ -f "/usr/lib/libgpm.a" ]]; then
+  GPM_STATIC_LIB="/usr/lib/libgpm.a"
+fi
 
-GPM_STATIC_LIB="$(find /usr/lib /usr/lib64 /usr/lib/x86_64-linux-gnu -type f -name 'libgpm.a' 2>/dev/null | head -n 1)"
 if [[ -z "${GPM_STATIC_LIB}" ]]; then
   echo "Could not find static libgpm.a. Install gpm static development package."
   exit 1
 fi
 
-# Force static gpm linkage so mc works on Flatcar without libgpm.so.2.
-sed -i -E "s#(^|[[:space:]])-lgpm([[:space:]]|$)# ${GPM_STATIC_LIB} #g" Makefile src/Makefile lib/Makefile 2>/dev/null || true
+export LIBS="${GPM_STATIC_LIB} ${LIBS:-}"
+
+./configure \
+  --without-x \
+  --with-gpm-mouse \
+  --with-screen=ncurses
+
+# Keep gpm support enabled, but avoid runtime dependency on libgpm.so.2.
+sed -i \
+  -e 's#-lgpm#-Wl,-Bstatic -lgpm -Wl,-Bdynamic#g' \
+  Makefile src/Makefile lib/Makefile 2>/dev/null || true
 
 make -j"$(nproc)"
 popd > /dev/null
