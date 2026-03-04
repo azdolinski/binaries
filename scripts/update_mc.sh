@@ -7,6 +7,8 @@ BINARIES_DIR="${REPO_ROOT}/binaries"
 mkdir -p "${BINARIES_DIR}"
 
 FORCE_REBUILD="${FORCE_REBUILD:-false}"
+NCURSES_VERSION="6.5"
+NCURSES_URL="https://invisible-mirror.net/archives/ncurses/ncurses-${NCURSES_VERSION}.tar.gz"
 
 retry() {
   local attempts="$1"
@@ -79,6 +81,29 @@ if [[ ! -d "${SRC_DIR}" ]]; then
   exit 1
 fi
 
+NCURSES_ARCHIVE_PATH="${TMP_DIR}/ncurses.tar.gz"
+NCURSES_SRC_DIR="${TMP_DIR}/ncurses-src"
+NCURSES_INSTALL_PREFIX="${TMP_DIR}/ncurses-static"
+
+retry 5 10 curl -fL "${NCURSES_URL}" -o "${NCURSES_ARCHIVE_PATH}"
+tar -xzf "${NCURSES_ARCHIVE_PATH}" -C "${TMP_DIR}"
+mv "${TMP_DIR}/ncurses-${NCURSES_VERSION}" "${NCURSES_SRC_DIR}"
+
+pushd "${NCURSES_SRC_DIR}" > /dev/null
+./configure \
+  --prefix="${NCURSES_INSTALL_PREFIX}" \
+  --with-shared=no \
+  --with-normal \
+  --with-termlib \
+  --with-default-terminfo-dir="${NCURSES_INSTALL_PREFIX}/share/terminfo" \
+  --with-terminfo-dirs=/usr/lib/terminfo:/usr/lib64/terminfo:/usr/share/terminfo:/etc/terminfo:/lib/terminfo \
+  --without-debug \
+  --without-ada \
+  --enable-widec
+make -j"$(nproc)"
+make install
+popd > /dev/null
+
 pushd "${SRC_DIR}" > /dev/null
 
 if [[ ! -f "${SRC_DIR}/configure" ]]; then
@@ -104,7 +129,10 @@ if [[ -z "${GPM_STATIC_LIB}" ]]; then
   exit 1
 fi
 
-export LIBS="${GPM_STATIC_LIB} ${LIBS:-}"
+NCURSES_STATIC_LIBS="${NCURSES_INSTALL_PREFIX}/lib/libncursesw.a ${NCURSES_INSTALL_PREFIX}/lib/libtinfow.a"
+export LIBS="${GPM_STATIC_LIB} ${NCURSES_STATIC_LIBS} ${LIBS:-}"
+export CPPFLAGS="-I${NCURSES_INSTALL_PREFIX}/include/ncursesw ${CPPFLAGS:-}"
+export LDFLAGS="-L${NCURSES_INSTALL_PREFIX}/lib ${LDFLAGS:-}"
 
 ./configure \
   --without-x \
@@ -121,6 +149,8 @@ sed -i \
 while IFS= read -r file; do
   sed -i -E 's#(^|[[:space:]])-lgpm([[:space:]]|$)# #g' "${file}"
 done < <(find . -type f \( -name 'Makefile' -o -name '*.la' \))
+
+# ncurses/tinfo are provided via static archives in LIBS above.
 
 make -j"$(nproc)"
 
@@ -139,6 +169,18 @@ if ldd "${STAGED_MC_BIN}" 2>&1 | grep -q 'libgpm'; then
   echo "mc binary is still linked to dynamic libgpm."
   ldd "${STAGED_MC_BIN}" || true
   exit 1
+fi
+
+mkdir -p "${STAGE_DIR}/usr/local/lib"
+while IFS= read -r lib_path; do
+  if [[ -f "${lib_path}" ]]; then
+    install -m 0644 "${lib_path}" "${STAGE_DIR}/usr/local/lib/"
+  fi
+done < <(ldd "${STAGED_MC_BIN}" | awk '/libncurses|libtinfo/ {print $3}')
+
+if ldd "${STAGED_MC_BIN}" 2>&1 | grep -Eq 'libncurses|libtinfo'; then
+  echo "mc binary links dynamic ncurses/tinfo; bundling loader path shim for runtime compatibility."
+  ldd "${STAGED_MC_BIN}" || true
 fi
 
 LAUNCHER_STUB_PATH="${TMP_DIR}/mc-launcher.sh"
@@ -185,6 +227,7 @@ export MC_DATADIR="${PREFIX_DIR}/share/mc"
 export MC_LIBDIR="${PREFIX_DIR}/libexec/mc"
 export MC_EXTFS_DIR="${PREFIX_DIR}/libexec/mc/extfs.d"
 export MC_HOME="${HOME:-${RUN_DIR}}/.mc"
+export LD_LIBRARY_PATH="${PREFIX_DIR}/lib:${LD_LIBRARY_PATH:-}"
 
 exec "${PREFIX_DIR}/bin/mc" "$@"
 EOF
