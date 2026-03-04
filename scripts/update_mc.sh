@@ -8,6 +8,8 @@ mkdir -p "${BINARIES_DIR}"
 
 FORCE_REBUILD="${FORCE_REBUILD:-false}"
 MC_TAGS_API_URL="https://api.github.com/repos/MidnightCommander/mc/tags?per_page=100"
+NCURSES_VERSION="6.5"
+NCURSES_URL="https://invisible-mirror.net/archives/ncurses/ncurses-${NCURSES_VERSION}.tar.gz"
 
 retry() {
   local attempts="$1"
@@ -62,13 +64,36 @@ fi
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
+NCURSES_ARCHIVE_PATH="${TMP_DIR}/ncurses.tar.gz"
+NCURSES_SRC_DIR="${TMP_DIR}/ncurses-src"
+NCURSES_INSTALL_PREFIX="${TMP_DIR}/ncurses-static"
+
+retry 5 10 curl -fL "${NCURSES_URL}" -o "${NCURSES_ARCHIVE_PATH}"
+tar -xzf "${NCURSES_ARCHIVE_PATH}" -C "${TMP_DIR}"
+mv "${TMP_DIR}/ncurses-${NCURSES_VERSION}" "${NCURSES_SRC_DIR}"
+
+pushd "${NCURSES_SRC_DIR}" > /dev/null
+./configure \
+  --prefix="${NCURSES_INSTALL_PREFIX}" \
+  --with-shared=no \
+  --with-normal \
+  --with-termlib \
+  --with-default-terminfo-dir=/usr/share/terminfo \
+  --with-terminfo-dirs=/usr/lib/terminfo:/usr/lib64/terminfo:/usr/share/terminfo:/etc/terminfo:/lib/terminfo \
+  --without-debug \
+  --without-ada \
+  --enable-widec
+make -j"$(nproc)"
+make install
+popd > /dev/null
+
 ARCHIVE_PATH="${TMP_DIR}/mc.tar"
 ASSET_URL="https://api.github.com/repos/MidnightCommander/mc/tarball/refs/tags/${LATEST_TAG_RAW}"
 
 retry 5 10 curl -fL "${ASSET_URL}" -o "${ARCHIVE_PATH}"
 tar -xf "${ARCHIVE_PATH}" -C "${TMP_DIR}"
 
-SRC_DIR="$(find "${TMP_DIR}" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
+SRC_DIR="$(find "${TMP_DIR}" -mindepth 1 -maxdepth 1 -type d -name 'MidnightCommander-*' | head -n 1)"
 if [[ -z "${SRC_DIR}" || ! -d "${SRC_DIR}" ]]; then
   echo "Could not find extracted mc source directory."
   exit 1
@@ -85,9 +110,20 @@ if [[ ! -f "${SRC_DIR}/configure" ]]; then
   fi
 fi
 
+export CPPFLAGS="-I${NCURSES_INSTALL_PREFIX}/include/ncursesw"
+export LDFLAGS="-L${NCURSES_INSTALL_PREFIX}/lib"
+export LIBS="-lm"
+
 ./configure \
   --without-x \
+  --without-gpm \
   --with-screen=ncurses
+
+# Force static ncurses/tinfo archives to avoid runtime ABI mismatch on Flatcar.
+sed -i \
+  -e "s#-lncursesw -ltinfo#${NCURSES_INSTALL_PREFIX}/lib/libncursesw.a ${NCURSES_INSTALL_PREFIX}/lib/libtinfow.a#g" \
+  -e "s#-lncursesw#${NCURSES_INSTALL_PREFIX}/lib/libncursesw.a ${NCURSES_INSTALL_PREFIX}/lib/libtinfow.a#g" \
+  Makefile
 
 make -j"$(nproc)"
 popd > /dev/null
