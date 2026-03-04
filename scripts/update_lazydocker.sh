@@ -6,6 +6,8 @@ BINARIES_DIR="${REPO_ROOT}/binaries"
 
 mkdir -p "${BINARIES_DIR}"
 
+FORCE_REBUILD="${FORCE_REBUILD:-false}"
+
 API_URL="https://api.github.com/repos/jesseduffield/lazydocker/releases/latest"
 LATEST_TAG="$(curl -fsSL "${API_URL}" | python3 -c 'import json,sys; print(json.load(sys.stdin)["tag_name"])')"
 
@@ -20,12 +22,16 @@ ASSET_URL="https://github.com/jesseduffield/lazydocker/releases/download/${LATES
 VERSIONED_BINARY_PATH="${BINARIES_DIR}/lazydocker.${LATEST_TAG}"
 LATEST_BINARY_PATH="${BINARIES_DIR}/lazydocker.latest"
 
-if [[ -f "${VERSIONED_BINARY_PATH}" ]]; then
+if [[ -f "${VERSIONED_BINARY_PATH}" && "${FORCE_REBUILD}" != "true" ]]; then
   install -m 0755 "${VERSIONED_BINARY_PATH}" "${LATEST_BINARY_PATH}"
   md5sum "${VERSIONED_BINARY_PATH}" | awk '{print $1}' > "${VERSIONED_BINARY_PATH}.md5"
   md5sum "${LATEST_BINARY_PATH}" | awk '{print $1}' > "${LATEST_BINARY_PATH}.md5"
   echo "Latest lazydocker already compiled: ${LATEST_TAG}. Skipping download/build."
   exit 0
+fi
+
+if [[ -f "${VERSIONED_BINARY_PATH}" && "${FORCE_REBUILD}" == "true" ]]; then
+  echo "Force rebuild enabled for lazydocker ${LATEST_TAG}."
 fi
 
 TMP_DIR="$(mktemp -d)"

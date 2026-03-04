@@ -2,7 +2,19 @@ name: Update lazydocker binary
 
 on:
   workflow_dispatch:
+    inputs:
+      force:
+        description: "Force rebuild even if latest version already exists"
+        required: false
+        default: false
+        type: boolean
   workflow_call:
+    inputs:
+      force:
+        description: "Force rebuild even if latest version already exists"
+        required: false
+        default: false
+        type: boolean
     outputs:
       version:
         description: "Resolved lazydocker version"
@@ -22,6 +34,8 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Download and unpack latest lazydocker
+        env:
+          FORCE_REBUILD: ${{ inputs.force }}
         run: bash ./scripts/update_lazydocker.sh
 
       - name: Commit and push changes

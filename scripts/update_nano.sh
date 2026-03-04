@@ -6,6 +6,8 @@ BINARIES_DIR="${REPO_ROOT}/binaries"
 
 mkdir -p "${BINARIES_DIR}"
 
+FORCE_REBUILD="${FORCE_REBUILD:-false}"
+
 NANO_GIT_URL="https://git.savannah.gnu.org/git/nano.git"
 NCURSES_VERSION="6.5"
 NCURSES_URL="https://invisible-mirror.net/archives/ncurses/ncurses-${NCURSES_VERSION}.tar.gz"
@@ -49,12 +51,16 @@ fi
 VERSIONED_BINARY_PATH="${BINARIES_DIR}/nano.${LATEST_TAG}"
 LATEST_BINARY_PATH="${BINARIES_DIR}/nano.latest"
 
-if [[ -f "${VERSIONED_BINARY_PATH}" ]]; then
+if [[ -f "${VERSIONED_BINARY_PATH}" && "${FORCE_REBUILD}" != "true" ]]; then
   install -m 0755 "${VERSIONED_BINARY_PATH}" "${LATEST_BINARY_PATH}"
   md5sum "${VERSIONED_BINARY_PATH}" | awk '{print $1}' > "${VERSIONED_BINARY_PATH}.md5"
   md5sum "${LATEST_BINARY_PATH}" | awk '{print $1}' > "${LATEST_BINARY_PATH}.md5"
   echo "Latest nano already compiled: ${LATEST_TAG}. Skipping download/build."
   exit 0
+fi
+
+if [[ -f "${VERSIONED_BINARY_PATH}" && "${FORCE_REBUILD}" == "true" ]]; then
+  echo "Force rebuild enabled for nano ${LATEST_TAG}."
 fi
 
 SRC_DIR="${TMP_DIR}/nano-src"

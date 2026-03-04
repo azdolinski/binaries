@@ -2,7 +2,19 @@ name: Update nano binary
 
 on:
   workflow_dispatch:
+    inputs:
+      force:
+        description: "Force rebuild even if latest version already exists"
+        required: false
+        default: false
+        type: boolean
   workflow_call:
+    inputs:
+      force:
+        description: "Force rebuild even if latest version already exists"
+        required: false
+        default: false
+        type: boolean
     outputs:
       version:
         description: "Resolved nano version"
@@ -27,6 +39,8 @@ jobs:
           sudo apt-get install -y build-essential autoconf automake libtool pkg-config gettext autopoint texinfo
 
       - name: Download, build, and store latest nano
+        env:
+          FORCE_REBUILD: ${{ inputs.force }}
         run: bash ./scripts/update_nano.sh
 
       - name: Commit and push changes

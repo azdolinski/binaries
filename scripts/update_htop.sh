@@ -6,6 +6,8 @@ BINARIES_DIR="${REPO_ROOT}/binaries"
 
 mkdir -p "${BINARIES_DIR}"
 
+FORCE_REBUILD="${FORCE_REBUILD:-false}"
+
 API_URL="https://api.github.com/repos/htop-dev/htop/releases/latest"
 NCURSES_VERSION="6.5"
 NCURSES_URL="https://invisible-mirror.net/archives/ncurses/ncurses-${NCURSES_VERSION}.tar.gz"
@@ -23,12 +25,16 @@ ASSET_URL="https://github.com/htop-dev/htop/releases/download/${LATEST_TAG_VERSI
 VERSIONED_BINARY_PATH="${BINARIES_DIR}/htop.${LATEST_TAG}"
 LATEST_BINARY_PATH="${BINARIES_DIR}/htop.latest"
 
-if [[ -f "${VERSIONED_BINARY_PATH}" ]]; then
+if [[ -f "${VERSIONED_BINARY_PATH}" && "${FORCE_REBUILD}" != "true" ]]; then
   install -m 0755 "${VERSIONED_BINARY_PATH}" "${LATEST_BINARY_PATH}"
   md5sum "${VERSIONED_BINARY_PATH}" | awk '{print $1}' > "${VERSIONED_BINARY_PATH}.md5"
   md5sum "${LATEST_BINARY_PATH}" | awk '{print $1}' > "${LATEST_BINARY_PATH}.md5"
   echo "Latest htop already compiled: ${LATEST_TAG}. Skipping download/build."
   exit 0
+fi
+
+if [[ -f "${VERSIONED_BINARY_PATH}" && "${FORCE_REBUILD}" == "true" ]]; then
+  echo "Force rebuild enabled for htop ${LATEST_TAG}."
 fi
 
 TMP_DIR="$(mktemp -d)"
@@ -69,8 +75,8 @@ fi
 
 pushd "${SRC_DIR}" > /dev/null
 export CPPFLAGS="-I${NCURSES_INSTALL_PREFIX}/include/ncursesw"
-export LDFLAGS="-L${NCURSES_INSTALL_PREFIX}/lib -static"
-export LIBS="-ltinfow -lncursesw"
+export LDFLAGS="-L${NCURSES_INSTALL_PREFIX}/lib"
+export LIBS="-Wl,-Bstatic -ltinfow -lncursesw -Wl,-Bdynamic"
 
 ./configure \
   --disable-shared \
@@ -83,8 +89,8 @@ if [[ ! -f "${SRC_DIR}/htop" ]]; then
   exit 1
 fi
 
-if ldd "${SRC_DIR}/htop" 2>&1 | grep -vq 'not a dynamic executable'; then
-  echo "htop binary is not fully static."
+if ldd "${SRC_DIR}/htop" 2>&1 | grep -Eq 'libncurses|libtinfo'; then
+  echo "htop binary is unexpectedly linked to dynamic ncurses/tinfo."
   ldd "${SRC_DIR}/htop" || true
   exit 1
 fi

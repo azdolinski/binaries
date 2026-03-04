@@ -6,6 +6,8 @@ BINARIES_DIR="${REPO_ROOT}/binaries"
 
 mkdir -p "${BINARIES_DIR}"
 
+FORCE_REBUILD="${FORCE_REBUILD:-false}"
+
 retry() {
   local attempts="$1"
   local delay_seconds="$2"
@@ -38,12 +40,16 @@ fi
 VERSIONED_BINARY_PATH="${BINARIES_DIR}/docker-compose.${LATEST_TAG}"
 LATEST_BINARY_PATH="${BINARIES_DIR}/docker-compose.latest"
 
-if [[ -f "${VERSIONED_BINARY_PATH}" ]]; then
+if [[ -f "${VERSIONED_BINARY_PATH}" && "${FORCE_REBUILD}" != "true" ]]; then
   install -m 0755 "${VERSIONED_BINARY_PATH}" "${LATEST_BINARY_PATH}"
   md5sum "${VERSIONED_BINARY_PATH}" | awk '{print $1}' > "${VERSIONED_BINARY_PATH}.md5"
   md5sum "${LATEST_BINARY_PATH}" | awk '{print $1}' > "${LATEST_BINARY_PATH}.md5"
   echo "Latest docker-compose already available: ${LATEST_TAG}. Skipping download."
   exit 0
+fi
+
+if [[ -f "${VERSIONED_BINARY_PATH}" && "${FORCE_REBUILD}" == "true" ]]; then
+  echo "Force rebuild enabled for docker-compose ${LATEST_TAG}."
 fi
 
 ASSET_URL="https://github.com/docker/compose/releases/download/${LATEST_TAG}/docker-compose-linux-x86_64"
