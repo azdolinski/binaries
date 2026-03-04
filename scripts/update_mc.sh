@@ -7,8 +7,7 @@ BINARIES_DIR="${REPO_ROOT}/binaries"
 mkdir -p "${BINARIES_DIR}"
 
 FORCE_REBUILD="${FORCE_REBUILD:-false}"
-NCURSES_VERSION="6.5"
-NCURSES_URL="https://invisible-mirror.net/archives/ncurses/ncurses-${NCURSES_VERSION}.tar.gz"
+MC_TAGS_API_URL="https://api.github.com/repos/MidnightCommander/mc/tags?per_page=100"
 
 retry() {
   local attempts="$1"
@@ -31,7 +30,6 @@ retry() {
   return 1
 }
 
-MC_TAGS_API_URL="https://api.github.com/repos/MidnightCommander/mc/tags?per_page=100"
 LATEST_TAG_RAW="$(retry 5 10 curl -fsSL "${MC_TAGS_API_URL}" | python3 -c 'import json,re,sys
 tags=json.load(sys.stdin)
 stable=[t["name"] for t in tags if re.fullmatch(r"\d+\.\d+\.\d+", t.get("name",""))]
@@ -71,38 +69,10 @@ retry 5 10 curl -fL "${ASSET_URL}" -o "${ARCHIVE_PATH}"
 tar -xf "${ARCHIVE_PATH}" -C "${TMP_DIR}"
 
 SRC_DIR="$(find "${TMP_DIR}" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
-if [[ -z "${SRC_DIR}" ]]; then
+if [[ -z "${SRC_DIR}" || ! -d "${SRC_DIR}" ]]; then
   echo "Could not find extracted mc source directory."
   exit 1
 fi
-
-if [[ ! -d "${SRC_DIR}" ]]; then
-  echo "Could not find extracted mc source directory: ${SRC_DIR}"
-  exit 1
-fi
-
-NCURSES_ARCHIVE_PATH="${TMP_DIR}/ncurses.tar.gz"
-NCURSES_SRC_DIR="${TMP_DIR}/ncurses-src"
-NCURSES_INSTALL_PREFIX="${TMP_DIR}/ncurses-static"
-
-retry 5 10 curl -fL "${NCURSES_URL}" -o "${NCURSES_ARCHIVE_PATH}"
-tar -xzf "${NCURSES_ARCHIVE_PATH}" -C "${TMP_DIR}"
-mv "${TMP_DIR}/ncurses-${NCURSES_VERSION}" "${NCURSES_SRC_DIR}"
-
-pushd "${NCURSES_SRC_DIR}" > /dev/null
-./configure \
-  --prefix="${NCURSES_INSTALL_PREFIX}" \
-  --with-shared=no \
-  --with-normal \
-  --with-termlib \
-  --with-default-terminfo-dir="${NCURSES_INSTALL_PREFIX}/share/terminfo" \
-  --with-terminfo-dirs=/usr/lib/terminfo:/usr/lib64/terminfo:/usr/share/terminfo:/etc/terminfo:/lib/terminfo \
-  --without-debug \
-  --without-ada \
-  --enable-widec
-make -j"$(nproc)"
-make install
-popd > /dev/null
 
 pushd "${SRC_DIR}" > /dev/null
 
@@ -115,131 +85,20 @@ if [[ ! -f "${SRC_DIR}/configure" ]]; then
   fi
 fi
 
-GPM_STATIC_LIB=""
-if [[ -f "/usr/lib/x86_64-linux-gnu/libgpm.a" ]]; then
-  GPM_STATIC_LIB="/usr/lib/x86_64-linux-gnu/libgpm.a"
-elif [[ -f "/usr/lib64/libgpm.a" ]]; then
-  GPM_STATIC_LIB="/usr/lib64/libgpm.a"
-elif [[ -f "/usr/lib/libgpm.a" ]]; then
-  GPM_STATIC_LIB="/usr/lib/libgpm.a"
-fi
-
-if [[ -z "${GPM_STATIC_LIB}" ]]; then
-  echo "Could not find static libgpm.a. Install gpm static development package."
-  exit 1
-fi
-
-NCURSES_STATIC_LIBS="${NCURSES_INSTALL_PREFIX}/lib/libncursesw.a ${NCURSES_INSTALL_PREFIX}/lib/libtinfow.a"
-export LIBS="${GPM_STATIC_LIB} ${NCURSES_STATIC_LIBS} ${LIBS:-}"
-export CPPFLAGS="-I${NCURSES_INSTALL_PREFIX}/include/ncursesw ${CPPFLAGS:-}"
-export LDFLAGS="-L${NCURSES_INSTALL_PREFIX}/lib ${LDFLAGS:-}"
-
 ./configure \
   --without-x \
-  --with-gpm-mouse \
   --with-screen=ncurses
 
-# Keep gpm support enabled, but avoid runtime dependency on libgpm.so.2.
-sed -i \
-  -e 's#-lgpm#-Wl,-Bstatic -lgpm -Wl,-Bdynamic#g' \
-  Makefile src/Makefile lib/Makefile 2>/dev/null || true
-
-# Autotools/libtool may still append dynamic -lgpm later in nested Makefiles.
-# Remove dynamic gpm flags and rely on explicit static libgpm.a injected via LIBS.
-while IFS= read -r file; do
-  sed -i -E 's#(^|[[:space:]])-lgpm([[:space:]]|$)# #g' "${file}"
-done < <(find . -type f \( -name 'Makefile' -o -name '*.la' \))
-
-# ncurses/tinfo are provided via static archives in LIBS above.
-
 make -j"$(nproc)"
-
-STAGE_DIR="${TMP_DIR}/mc-stage"
-make install DESTDIR="${STAGE_DIR}"
 popd > /dev/null
 
-STAGED_MC_BIN="${STAGE_DIR}/usr/local/bin/mc"
-
-if [[ ! -f "${STAGED_MC_BIN}" ]]; then
-  echo "Build finished but staged mc binary is missing."
+if [[ ! -f "${SRC_DIR}/src/mc" ]]; then
+  echo "Build finished but mc binary is missing."
   exit 1
 fi
 
-if ldd "${STAGED_MC_BIN}" 2>&1 | grep -q 'libgpm'; then
-  echo "mc binary is still linked to dynamic libgpm."
-  ldd "${STAGED_MC_BIN}" || true
-  exit 1
-fi
-
-mkdir -p "${STAGE_DIR}/usr/local/lib"
-while IFS= read -r lib_path; do
-  if [[ -f "${lib_path}" ]]; then
-    install -m 0644 "${lib_path}" "${STAGE_DIR}/usr/local/lib/"
-  fi
-done < <(ldd "${STAGED_MC_BIN}" | awk '/libncurses|libtinfo/ {print $3}')
-
-if ldd "${STAGED_MC_BIN}" 2>&1 | grep -Eq 'libncurses|libtinfo'; then
-  echo "mc binary links dynamic ncurses/tinfo; bundling loader path shim for runtime compatibility."
-  ldd "${STAGED_MC_BIN}" || true
-fi
-
-LAUNCHER_STUB_PATH="${TMP_DIR}/mc-launcher.sh"
-cat > "${LAUNCHER_STUB_PATH}" <<'EOF'
-#!/usr/bin/env bash
-set -euo pipefail
-
-SELF_PATH="$(readlink -f "$0")"
-PAYLOAD_START_LINE="$(awk '/^__MC_PAYLOAD_BELOW__$/ {print NR + 1; exit 0; }' "${SELF_PATH}")"
-
-if [[ -z "${PAYLOAD_START_LINE}" ]]; then
-  echo "Corrupted mc bundle: payload marker not found."
-  exit 1
-fi
-
-RUN_DIR="${TMPDIR:-/tmp}/mc-bundle-$(id -u)-$(basename "${SELF_PATH}")"
-PREFIX_DIR="${RUN_DIR}/usr/local"
-
-if [[ ! -x "${PREFIX_DIR}/bin/mc" ]]; then
-  rm -rf "${RUN_DIR}"
-  mkdir -p "${RUN_DIR}"
-  tail -n +"${PAYLOAD_START_LINE}" "${SELF_PATH}" | tar -xzf - -C "${RUN_DIR}"
-fi
-
-if [[ -f "${PREFIX_DIR}/etc/mc/sfs.ini" && ! -f "${PREFIX_DIR}/share/mc/sfs.ini" ]]; then
-  ln -sf "${PREFIX_DIR}/etc/mc/sfs.ini" "${PREFIX_DIR}/share/mc/sfs.ini"
-fi
-
-# mc still uses hardcoded /usr/local paths for some resources.
-# If writable, map them to extracted bundle locations.
-if [[ -w "/usr/local" ]]; then
-  mkdir -p "/usr/local/libexec" "/usr/local/etc"
-
-  if [[ ! -e "/usr/local/libexec/mc" ]]; then
-    ln -s "${PREFIX_DIR}/libexec/mc" "/usr/local/libexec/mc" || true
-  fi
-
-  if [[ ! -e "/usr/local/etc/mc" ]]; then
-    ln -s "${PREFIX_DIR}/etc/mc" "/usr/local/etc/mc" || true
-  fi
-fi
-
-export MC_DATADIR="${PREFIX_DIR}/share/mc"
-export MC_LIBDIR="${PREFIX_DIR}/libexec/mc"
-export MC_EXTFS_DIR="${PREFIX_DIR}/libexec/mc/extfs.d"
-export MC_HOME="${HOME:-${RUN_DIR}}/.mc"
-export LD_LIBRARY_PATH="${PREFIX_DIR}/lib:${LD_LIBRARY_PATH:-}"
-
-exec "${PREFIX_DIR}/bin/mc" "$@"
-EOF
-
-{
-  cat "${LAUNCHER_STUB_PATH}"
-  echo "__MC_PAYLOAD_BELOW__"
-  tar -czf - -C "${STAGE_DIR}" .
-} > "${VERSIONED_BINARY_PATH}"
-
-install -m 0755 "${VERSIONED_BINARY_PATH}" "${LATEST_BINARY_PATH}"
-chmod 0755 "${VERSIONED_BINARY_PATH}"
+install -m 0755 "${SRC_DIR}/src/mc" "${VERSIONED_BINARY_PATH}"
+install -m 0755 "${SRC_DIR}/src/mc" "${LATEST_BINARY_PATH}"
 
 md5sum "${VERSIONED_BINARY_PATH}" | awk '{print $1}' > "${VERSIONED_BINARY_PATH}.md5"
 md5sum "${LATEST_BINARY_PATH}" | awk '{print $1}' > "${LATEST_BINARY_PATH}.md5"

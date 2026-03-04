@@ -26,6 +26,8 @@ permissions:
 jobs:
   update:
     runs-on: ubuntu-latest
+    container:
+      image: fedora:41
     outputs:
       version: ${{ steps.detect_version.outputs.version }}
 
@@ -35,8 +37,10 @@ jobs:
 
       - name: Install build dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential autoconf automake libtool pkg-config gettext autopoint libglib2.0-dev libncursesw5-dev libgpm-dev
+          dnf -y install \
+            gcc gcc-c++ make \
+            autoconf automake libtool pkgconf-pkg-config gettext gettext-devel \
+            glib2-devel ncurses-devel gpm-devel tar gzip findutils
 
       - name: Download, build, and store latest mc
         env:
