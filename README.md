@@ -13,6 +13,9 @@ Currently supported projects:
 
 The goal is to keep up-to-date, ready-to-use binaries in this repository without manual download, extraction, or build steps.
 
+This repository is dedicated to binaries that are expected to run on Flatcar and Fedora systems.
+Build configuration and linking decisions are made with Flatcar compatibility in mind.
+
 ## Output files
 
 After each successful update for a tool named `toolname`, the repository contains:
@@ -58,5 +61,6 @@ wget -O docker-compose https://github.com/azdolinski/binaries/raw/refs/heads/mai
 - `htop` is downloaded from release source archive, built in CI, and then stored as an executable.
 - `nano` is cloned from Savannah Git by latest tag, built in CI, and then stored as an executable.
 - `docker-compose` is downloaded from release assets and stored as an unpacked executable.
+- Runtime compatibility target is Flatcar/Fedora; binaries are tuned to run there reliably.
 - Each workflow commits only when files in `binaries/` changed.
 - This structure is designed to be extended with more tools in future.
