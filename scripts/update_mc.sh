@@ -78,8 +78,8 @@ pushd "${NCURSES_SRC_DIR}" > /dev/null
   --with-shared=no \
   --with-normal \
   --with-termlib \
-  --with-default-terminfo-dir=/usr/share/terminfo \
-  --with-terminfo-dirs=/usr/lib/terminfo:/usr/lib64/terminfo:/usr/share/terminfo:/etc/terminfo:/lib/terminfo \
+  --with-default-terminfo-dir="${NCURSES_INSTALL_PREFIX}/share/terminfo" \
+  --with-terminfo-dirs="${NCURSES_INSTALL_PREFIX}/share/terminfo:/usr/lib/terminfo:/usr/lib64/terminfo:/usr/share/terminfo:/etc/terminfo:/lib/terminfo" \
   --without-debug \
   --without-ada \
   --enable-widec
@@ -110,11 +110,18 @@ if [[ ! -f "${SRC_DIR}/configure" ]]; then
   fi
 fi
 
+# Force gpm probe to fail even if gpm bits are present in build container.
+ac_cv_header_gpm_h=no \
+ac_cv_lib_gpm_Gpm_Open=no \
 ./configure \
   --without-x \
   --without-gpm \
-  --disable-mouse \
+  --without-gpm-mouse \
   --with-screen=ncursesw
+
+# Remove any accidental gpm linkage from generated build files.
+find . -type f \( -name 'Makefile' -o -name 'Makefile.in' \) -print0 | \
+  xargs -0 sed -i 's/[[:space:]]-lgpm//g'
 
 # Force static ncurses/tinfo archives to avoid runtime ABI mismatch on Flatcar.
 sed -i \
@@ -123,6 +130,16 @@ sed -i \
   Makefile
 
 make -j"$(nproc)"
+
+if ldd "${SRC_DIR}/src/mc" 2>/dev/null | grep -q 'libgpm'; then
+  echo "mc is still linked to libgpm; build is not Flatcar-compatible."
+  ldd "${SRC_DIR}/src/mc" || true
+  exit 1
+fi
+
+echo "Final mc dynamic dependencies:"
+ldd "${SRC_DIR}/src/mc" || true
+
 popd > /dev/null
 
 if [[ ! -f "${SRC_DIR}/src/mc" ]]; then
