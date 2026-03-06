@@ -61,7 +61,7 @@ jobs:
 
           git config --global --add safe.directory "${GITHUB_WORKSPACE}"
 
-          git add -A binaries
+          git add -A -f binaries
 
           if git diff --cached --quiet; then
             echo "No changes in binaries directory."
